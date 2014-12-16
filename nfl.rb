@@ -1,5 +1,5 @@
 
-gameID = 400554425
+gameID = 400554427
 team = {
 	"Brandon Weeden"=> {"pos"=> "QB", "team"=> "DAL"},
 	"DeMarco Murray"=> {"pos"=> "RB", "team"=> "DAL"},
@@ -11,7 +11,6 @@ team = {
 	"Dan Bailey"=> {"pos"=> "K", "team"=> "DAL"}
 }
 
-require 'open-uri'
 require 'mail'
 require 'selenium-webdriver'
 
@@ -71,62 +70,61 @@ def email(subject, body)
 	end
 end
 
-driver = Selenium::WebDriver.for :chrome
-driver.get "http://scores.espn.go.com/nfl/gamecast?gameId=#{gameID}"
+def getUpdates(gameID, team)
+	driver = Selenium::WebDriver.for :chrome
+	driver.get "http://scores.espn.go.com/nfl/gamecast?gameId=#{gameID}"
 
-wait = Selenium::WebDriver::Wait.new(:timeout => 30) # seconds
-begin
-	if driver.find_element(:class => "gc-clock").text != "Final"
-		element = wait.until { driver.find_element(:id => "skip").attribute("style") == "display: inline;" }
-		driver.find_element(:id => "skip").click
-	end
-ensure
-	homeTeam = driver.find_element(:xpath => "//div[@id='content-wrap']/div[@id='linescore']/div[@class='linescore clear']/table/tbody/tr[@class='home']/td[@class='gc-team']/a").text
-	awayTeam = driver.find_element(:xpath => "//div[@id='content-wrap']/div[@id='linescore']/div[@class='linescore clear']/table/tbody/tr[@class='away']/td[@class='gc-team']/a").text
-	puts "#{homeTeam} VS #{awayTeam}"
-
-	homeTeamPlayers = []
-	awayTeamPlayers = []
-	playersInGame = {}
-	team.each do |name, info|
-		if info["team"] == homeTeam
-			homeTeamPlayers << "#{name} #{info['pos']}"
-			playersInGame[name] = info
-		elsif info["team"] == awayTeam
-			awayTeamPlayers << "#{name} #{info['pos']}"
-			playersInGame[name] = info
+	wait = Selenium::WebDriver::Wait.new(:timeout => 30) # seconds
+	begin
+		if driver.find_element(:class => "gc-clock").text != "Final"
+			element = wait.until { driver.find_element(:id => "skip").attribute("style") == "display: inline;" }
+			driver.find_element(:id => "skip").click
 		end
-	end
+	ensure
+		element = wait.until { driver.find_element(:xpath => "//div[@id='content-wrap']/div[@id='linescore']/div[@class='linescore clear']/table/tbody/tr[@class='home']/td[@class='gc-team']/a") }
+		homeTeam = driver.find_element(:xpath => "//div[@id='content-wrap']/div[@id='linescore']/div[@class='linescore clear']/table/tbody/tr[@class='home']/td[@class='gc-team']/a").text
+		awayTeam = driver.find_element(:xpath => "//div[@id='content-wrap']/div[@id='linescore']/div[@class='linescore clear']/table/tbody/tr[@class='away']/td[@class='gc-team']/a").text
+		puts "#{homeTeam} VS #{awayTeam}"
 
-	lastTeamWithBall = ""
-	lastUpdate = ""
-	while driver.find_element(:class => "gc-clock").text != "Final"
-		driveInfo = driver.find_element(:xpath => "//div[@id='content-wrap']/div[@id='info-box']/div[@id='plays-tab']/ul/li[@class='feed-mod play drive expanded  ']/p[@class='play-text expander']/a").text
-		puts driveInfo
-		if driveInfo.include?(homeTeam)
-			if lastTeamWithBall != homeTeam
+		homeTeamPlayers = []
+		awayTeamPlayers = []
+		playersInGame = {}
+		team.each do |name, info|
+			if info["team"] == homeTeam
+				homeTeamPlayers << "#{name} #{info['pos']}"
+				playersInGame[name] = info
+			elsif info["team"] == awayTeam
+				awayTeamPlayers << "#{name} #{info['pos']}"
+				playersInGame[name] = info
+			end
+		end
+
+		lastTeamWithBall = ""
+		lastUpdate = ""
+		while wait.until { driver.find_element(:class => "gc-clock").text } != "Final"
+			driveInfo = wait.until { driver.find_element(:xpath => "//div[@id='content-wrap']/div[@id='info-box']/div[@id='plays-tab']/ul/li[@class='feed-mod play drive expanded  current']/p[@class='play-text expander']/a").text }
+			#puts driveInfo
+			if driveInfo.include?(homeTeam) and lastTeamWithBall != homeTeam
 				lastTeamWithBall = homeTeam
 				email("#{homeTeam} has the ball", "Root for #{homeTeamPlayers.join(', ')}")
-			end
-		elsif driveInfo.include?(awayTeam)
-			if lastTeamWithBall != awayTeam
+			elsif driveInfo.include?(awayTeam) and lastTeamWithBall != awayTeam
 				lastTeamWithBall = awayTeam
 				email("#{awayTeam} has the ball", "Root for #{awayTeamPlayers.join(', ')}")
 			end
-		end
 
-		lastPlay = driver.find_element(:xpath => "//div[@id='content-wrap']/div[@id='info-box']/div[@id='plays-tab']/ul/li[@class='feed-mod play drive expanded  ']/ul[@class='plays clear']/li[@class='expanded']/p").text
-		playersInGame.keys.each do |name|
-			if lastPlay.include?(name) and lastUpdate != lastPlay
-				lastUpdate = lastPlay
-				email("name", lastPlay)
+			lastPlay = driver.find_element(:xpath => "//*[@id='lastPlay-text']").text
+			playersInGame.keys.each do |name|
+				if lastPlay.include?(name) and lastUpdate != lastPlay
+					lastUpdate = lastPlay
+					email("name", lastPlay)
+				end
 			end
-		end
-  	end
-	driver.quit
+	  	end
+		driver.quit
+	end
 end
 
-
+#getUpdates(gameID, team)
 
 
 
