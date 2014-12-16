@@ -17,6 +17,8 @@ Mail.defaults do
   delivery_method :smtp, options
 end
 
+@drivers = []
+
 def email(subject, body)
 	Mail.deliver do
 	  from     'FanDuel Update'
@@ -26,16 +28,35 @@ def email(subject, body)
 	end
 end
 
-driver = Selenium::WebDriver.for :chrome
-driver.get "https://www.fanduel.com/p/MyLiveEntries"
-
-if driver.find_element(:xpath => "//*[@id='body']").attribute("class").include?("logged-out")
-	driver.execute_script("return document.getElementById('email').value = '#{yourEmail}';")
-	driver.execute_script("return document.getElementById('password').value = '#{yourPassword}';")
-	driver.find_element(:xpath => "//*/input[@type='submit']").click
+def openPage(url, driverNum)
+	@drivers[driverNum] = Selenium::WebDriver.for :chrome
+	@drivers[driverNum].get url
 end
 
-driver.find_elements(:xpath => "//*/td[@class='id']/a")[0].click
+openPage("https://www.fanduel.com/p/MyLiveEntries", 0)
+
+if @drivers[0].find_element(:xpath => "//*[@id='body']").attribute("class").include?("logged-out")
+	@drivers[0].execute_script("return document.getElementById('email').value = '#{yourEmail}';")
+	@drivers[0].execute_script("return document.getElementById('password').value = '#{yourPassword}';")
+	@drivers[0].find_element(:xpath => "//*/input[@type='submit']").click
+end
+
+@drivers[0].find_elements(:xpath => "//*/td[@class='id']/a").each_with_index do |id, i|
+	url = id.attribute("href")
+	driverNum = i + 1
+	openPage(url, driverNum)
+	thisDriver = @drivers[driverNum]
+
+	if thisDriver.find_element(:id => "scoring-table-name").text.include?("NFL")
+		thisDriver.find_elements(:class => "fixture-card").each do |game|
+			puts game
+		end
+	end
+
+	thisDriver.quit
+end
+
+@drivers[0].quit
 
 
 

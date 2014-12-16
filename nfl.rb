@@ -70,20 +70,44 @@ def email(subject, body)
 	end
 end
 
-def getUpdates(gameID, team)
-	driver = Selenium::WebDriver.for :chrome
-	driver.get "http://scores.espn.go.com/nfl/gamecast?gameId=#{gameID}"
+def getElementText(by)
 
+	begin
+		return @driver.find_element(by).text
+	rescue Selenium::WebDriver::Error::StaleElementReferenceError => e
+		retries ||= 0
+		retries += 1
+		if retries < 3
+			retry
+		else
+			waitForSkip(true)
+			raise e
+		end
+	end
+end
+
+def waitForSkip(finish)
 	wait = Selenium::WebDriver::Wait.new(:timeout => 30) # seconds
 	begin
-		if driver.find_element(:class => "gc-clock").text != "Final"
-			element = wait.until { driver.find_element(:id => "skip").attribute("style") == "display: inline;" }
-			driver.find_element(:id => "skip").click
+		wait.until { @driver.find_element(:id => "skip").attribute("style") == "display: inline;" }
+		@driver.find_element(:id => "skip").click
+	rescue
+		if finish
+			puts "Skip not found"
+			@driver.quit
 		end
-	ensure
-		element = wait.until { driver.find_element(:xpath => "//div[@id='content-wrap']/div[@id='linescore']/div[@class='linescore clear']/table/tbody/tr[@class='home']/td[@class='gc-team']/a") }
-		homeTeam = driver.find_element(:xpath => "//div[@id='content-wrap']/div[@id='linescore']/div[@class='linescore clear']/table/tbody/tr[@class='home']/td[@class='gc-team']/a").text
-		awayTeam = driver.find_element(:xpath => "//div[@id='content-wrap']/div[@id='linescore']/div[@class='linescore clear']/table/tbody/tr[@class='away']/td[@class='gc-team']/a").text
+	end
+end
+
+def getNFLUpdates(gameID, team)
+	@driver = Selenium::WebDriver.for :chrome
+	@driver.get "http://scores.espn.go.com/nfl/gamecast?gameId=#{gameID}"
+	
+	if getElementText({:class => "gc-clock"}) != "Final"
+		waitForSkip(false)
+
+		homeTeam = getElementText({:xpath => "//div[@id='content-wrap']/div[@id='linescore']/div[@class='linescore clear']/table/tbody/tr[@class='home']/td[@class='gc-team']/a"})
+		awayTeam = getElementText(:xpath => "//div[@id='content-wrap']/div[@id='linescore']/div[@class='linescore clear']/table/tbody/tr[@class='away']/td[@class='gc-team']/a")
 		puts "#{homeTeam} VS #{awayTeam}"
 
 		homeTeamPlayers = []
@@ -101,8 +125,8 @@ def getUpdates(gameID, team)
 
 		lastTeamWithBall = ""
 		lastUpdate = ""
-		while wait.until { driver.find_element(:class => "gc-clock").text } != "Final"
-			driveInfo = wait.until { driver.find_element(:xpath => "//div[@id='content-wrap']/div[@id='info-box']/div[@id='plays-tab']/ul/li[@class='feed-mod play drive expanded  current']/p[@class='play-text expander']/a").text }
+		while getElementText({:class => 'gc-clock'}) != "Final"
+			driveInfo = getElementText({:xpath => "//div[@id='content-wrap']/div[@id='info-box']/div[@id='plays-tab']/ul/li[contains(@class,'feed-mod play drive expanded  ')]/p[@class='play-text expander']/a"})
 			#puts driveInfo
 			if driveInfo.include?(homeTeam) and lastTeamWithBall != homeTeam
 				lastTeamWithBall = homeTeam
@@ -112,19 +136,21 @@ def getUpdates(gameID, team)
 				email("#{awayTeam} has the ball", "Root for #{awayTeamPlayers.join(', ')}")
 			end
 
-			lastPlay = driver.find_element(:xpath => "//*[@id='lastPlay-text']").text
+			lastPlay = getElementText({:xpath => "//*[@id='lastPlay-text']"})
 			playersInGame.keys.each do |name|
-				if lastPlay.include?(name) and lastUpdate != lastPlay
+				lastNameStart = name.rindex(" ") + 1
+				abbrevName = "#{name[0]}.#{name[lastNameStart, name.length - lastNameStart]}"
+				if lastPlay.include?(abbrevName) and lastUpdate != lastPlay
 					lastUpdate = lastPlay
-					email("name", lastPlay)
+					email(name, lastPlay)
 				end
 			end
 	  	end
-		driver.quit
+		@driver.quit
 	end
 end
 
-#getUpdates(gameID, team)
+#getNFLUpdates(gameID, team)
 
 
 
