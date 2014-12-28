@@ -1,18 +1,6 @@
-
-gameID = 400554427
-team = {
-	"Brandon Weeden"=> {"pos"=> "QB", "team"=> "DAL"},
-	"DeMarco Murray"=> {"pos"=> "RB", "team"=> "DAL"},
-	"Mark Ingram"=> {"pos"=> "RB", "team"=> "NO"},
-	"Jeremy Maclin"=> {"pos"=> "WR", "team"=> "PHI"},
-	"Kenny Stills"=> {"pos"=> "WR", "team"=> "NO"},
-	"Jordan Matthews"=> {"pos"=> "WR", "team"=> "PHI"},
-	"Martellus Bennett"=> {"pos"=> "TE", "team"=> "CHI"},
-	"Dan Bailey"=> {"pos"=> "K", "team"=> "DAL"}
-}
-
 require 'mail'
 require 'selenium-webdriver'
+require 'pp'
 
 abrevs = {
 	"Arizona"=> "ARI",
@@ -73,7 +61,11 @@ end
 def getElementText(by)
 
 	begin
-		return @driver.find_element(by).text
+		if by.is_a?(Hash)
+			return @driver.find_element(by).text
+		else
+			return by.text
+		end
 	rescue Selenium::WebDriver::Error::StaleElementReferenceError => e
 		retries ||= 0
 		retries += 1
@@ -97,6 +89,43 @@ def waitForSkip(finish)
 			@driver.quit
 		end
 	end
+end
+
+def waitForElement(by, driver)
+	wait = Selenium::WebDriver::Wait.new(:timeout => 10) # seconds
+	wait.until { driver.find_element( by ) }
+end
+
+def getGameIDs(currentGames)
+	driver = Selenium::WebDriver.for :chrome
+	driver.get "http://scores.espn.go.com/nfl/gamecast"
+
+	allIds = []
+	waitForElement({:xpath => "//*/ul[@id='oot-games']/li"}, driver)
+	driver.find_elements(:xpath => "//*/ul[@id='oot-games']/li").each do |id|
+		id = id.attribute("id")
+		allIds << id[4..id.length]
+	end
+	# pp allIds
+	driver.find_element(:id => "oot-right").click
+	driver.find_element(:id => "oot-right").click
+	driver.find_element(:id => "oot-right").click
+	driver.find_element(:id => "oot-right").click
+	gamecastGames = driver.find_elements(:xpath => "//*/ul[@id='oot-games']/li/div[@class='oot-game-link']/div[@class='teams']").map {|x| getElementText(x)}
+	# pp gamecastGames
+
+	ids = []
+	allIds.each do |id|
+		index = allIds.index(id)
+		currentGames.each do |teams|
+			if gamecastGames[index].include?(teams[0]) and gamecastGames[index].include?(teams[1])
+				ids << id
+			end
+		end
+	end
+	
+	driver.quit
+	return ids
 end
 
 def getNFLUpdates(gameID, team)
@@ -152,6 +181,24 @@ end
 
 #getNFLUpdates(gameID, team)
 
+getGameIDs(
+	[["SD", "KC"],
+	 ["NYJ", "MIA"],
+	 ["STL", "SEA"],
+	 ["ARI", "SF"],
+	 ["CLE", "BAL"],
+	 ["CAR", "ATL"],
+	 ["CHI", "MIN"],
+	 ["BUF", "NE"],
+	 ["PHI", "NYG"],
+	 ["CIN", "PIT"],
+	 ["NO", "TB"],
+	 ["IND", "TEN"],
+	 ["DAL", "WAS"],
+	 ["OAK", "DEN"],
+	 ["JAC", "HOU"],
+	 ["IND", "TEN"]]
+	 )
 
 
 

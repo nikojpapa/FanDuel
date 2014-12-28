@@ -1,6 +1,7 @@
 require './nfl'
 require 'mail'
 require 'selenium-webdriver'
+require 'pp'
 
 yourEmail = "nicholas.papadopoulos@comcast.net"
 yourPassword = "fdk11lKake"
@@ -33,30 +34,73 @@ def openPage(url, driverNum)
 	@drivers[driverNum].get url
 end
 
-openPage("https://www.fanduel.com/p/MyLiveEntries", 0)
-
-if @drivers[0].find_element(:xpath => "//*[@id='body']").attribute("class").include?("logged-out")
-	@drivers[0].execute_script("return document.getElementById('email').value = '#{yourEmail}';")
-	@drivers[0].execute_script("return document.getElementById('password').value = '#{yourPassword}';")
-	@drivers[0].find_element(:xpath => "//*/input[@type='submit']").click
+@wait = Selenium::WebDriver::Wait.new(:timeout => 10) # seconds
+def waitForElement(element, driver)
+	@wait.until { driver.find_element( element ) }
 end
 
-@drivers[0].find_elements(:xpath => "//*/td[@class='id']/a").each_with_index do |id, i|
+driver0 = Selenium::WebDriver.for :chrome
+driver0.get "https://www.fanduel.com/p/MyLiveEntries"
+
+waitForElement({:xpath => "//*[@id='body']"}, driver0)
+if driver0.find_element(:xpath => "//*[@id='body']").attribute("class").include?("logged-out")
+	driver0.execute_script("return document.getElementById('email').value = '#{yourEmail}';")
+	driver0.execute_script("return document.getElementById('password').value = '#{yourPassword}';")
+	driver0.find_element(:xpath => "//*/input[@type='submit']").click
+end
+
+gameDrivers = {}
+
+team = {}
+currentNFLGames = []
+
+waitForElement({:xpath => "//*/td[@class='id']/a"}, driver0)
+driver0.find_elements(:xpath => "//*/td[@class='id']/a").each_with_index do |id, i|
 	url = id.attribute("href")
-	driverNum = i + 1
-	openPage(url, driverNum)
-	thisDriver = @drivers[driverNum]
+	thisDriver = Selenium::WebDriver.for :chrome
+	thisDriver.get url
+
+	waitForElement({:xpath => "//*/div[@class='roster']/div/div/div/div[@class='name']"}, thisDriver)
+	thisDriver.find_elements(:xpath => "//*/div[@class='roster']/div/div/div/div[@class='name']").each do |name|
+		team[name.text] = {}
+	end
+
+	thisDriver.find_elements(:xpath => "//*/div[@class='roster']/div/div/div/div[@class='pos']").each_with_index do |pos, index|
+		team.keys.each_with_index do |name, ind|
+			if ind == index
+				team[name]["pos"] = pos.text
+				break
+			end
+		end
+	end
+
+	thisDriver.find_elements(:xpath => "//*/div[@class='roster']/div/div/div/div[@class='fixture-info']/div/span[contains(@class, 'player-team-highlight')]").each_with_index do |t, index|
+		team.keys.each_with_index do |name, ind|
+			if ind == index
+				team[name]["team"] = t.text
+				break
+			end
+		end
+	end
 
 	if thisDriver.find_element(:id => "scoring-table-name").text.include?("NFL")
 		thisDriver.find_elements(:class => "fixture-card").each do |game|
-			puts game
+			info = game.text
+
+			firstTeamEnd = info.index(/[^A-Z]/) - 1
+			secondTeamStart = info.index(/[A-Z]/, firstTeamEnd+1)
+			secondTeamEnd = info.index(/[^A-Z]/, secondTeamStart) - 1
+			currentNFLGames << [info[0..firstTeamEnd], info[secondTeamStart..secondTeamEnd]]
 		end
 	end
 
 	thisDriver.quit
 end
 
-@drivers[0].quit
+pp team
+pp currentNFLGames
+
+driver0.quit
 
 
 
