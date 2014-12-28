@@ -97,10 +97,39 @@ driver0.find_elements(:xpath => "//*/td[@class='id']/a").each_with_index do |id,
 	thisDriver.quit
 end
 
+currentNFLGames.each_with_index do |teams, index|
+	important = false
+	team.values.each do |playerInfo|
+		if teams.include?(playerInfo["team"])
+			important = true
+		end
+	end
+
+	if important == false
+		currentNFLGames[index] = nil
+	end
+end
+currentNFLGames.compact!
+
+team.each do |name, info|
+	if info["pos"] == "D"
+		currentNFLGames.each do |teams|
+			if teams.include?(info["team"])
+				otherTeamIndex = 1 - teams.index(info["team"])
+				info["team"] = teams[otherTeamIndex]
+				break
+			end
+		end
+		break
+	end
+end
+
 pp team
 pp currentNFLGames
 
 driver0.quit
+
+startNFL(currentNFLGames, team)
 
 
 
