@@ -125,13 +125,14 @@ def getGameIDs(currentGames, team)
 	driver.find_element(:id => "oot-right").click
 	driver.find_element(:id => "oot-right").click
 	gamecastGames = driver.find_elements(:xpath => "//*/ul[@id='oot-games']/li/div[@class='oot-game-link']/div[@class='teams']").map {|x| getElementText(x)}
+	gamecastGameClocks = driver.find_elements(:xpath => "//*/ul[@id='oot-games']/li/div[@class='oot-game-link']/div[@class='status']/div[@class='clock']").map {|x| getElementText(x)}
 	pp gamecastGames
 
 	ids = []
 	allIds.each do |id|
 		index = allIds.index(id)
 		currentGames.each do |teams|
-			if gamecastGames[index].include?(teams[0]) and gamecastGames[index].include?(teams[1])
+			if gamecastGames[index].include?(teams[0]) and gamecastGames[index].include?(teams[1]) and not gamecastGameClocks[index].include?("Final")
 				ids << id
 			end
 		end
@@ -157,13 +158,15 @@ def getNFLUpdates(team)
 		@driver = driver
 	
 		if getElementText({:class => "gc-clock"}) != "Final"
+			waitForSkip(false)
+
+			homeTeam = getElementText({:xpath => "//div[@id='content-wrap']/div[@id='linescore']/div[@class='linescore clear']/table/tbody/tr[@class='home']/td[@class='gc-team']/a"})
+			awayTeam = getElementText(:xpath => "//div[@id='content-wrap']/div[@id='linescore']/div[@class='linescore clear']/table/tbody/tr[@class='away']/td[@class='gc-team']/a")
+
+			puts "#{homeTeam} VS #{awayTeam} (#{rand})"
+
 			gcClock = getElementText({:class => "gc-clock"})
 			if gcClock.include?("1st") or gcClock.include?("2nd") or gcClock.include?("3rd") or gcClock.include?("4th")
-				waitForSkip(false)
-
-				homeTeam = getElementText({:xpath => "//div[@id='content-wrap']/div[@id='linescore']/div[@class='linescore clear']/table/tbody/tr[@class='home']/td[@class='gc-team']/a"})
-				awayTeam = getElementText(:xpath => "//div[@id='content-wrap']/div[@id='linescore']/div[@class='linescore clear']/table/tbody/tr[@class='away']/td[@class='gc-team']/a")
-				puts "#{homeTeam} VS #{awayTeam}"
 
 				homeTeamPlayers = []
 				awayTeamPlayers = []
@@ -200,7 +203,7 @@ def getNFLUpdates(team)
 				if driveInfo == nil
 					return
 				end
-				
+
 				if driveInfo.include?(homeTeam) and lastTeamWithBall != homeTeam
 					@lastUpdates["#{homeTeam}#{awayTeam}"][:lastTeamWithBall] = homeTeam
 					email("#{homeTeam} has the ball", "Root for #{homeTeamPlayers.join(', ')}")
@@ -218,6 +221,8 @@ def getNFLUpdates(team)
 						email(name, lastPlay)
 					end
 				end
+			else
+				puts "    Hasn't Started"
 			end
 		else
 			driver.quit
