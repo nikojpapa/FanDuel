@@ -89,6 +89,37 @@ def getElementText(by)
 	end
 end
 
+def getElementAttribute(by, attrib)
+
+	begin
+		if by.is_a?(Hash)
+			return @driver.find_element(by).attribute(attrib)
+		else
+			return by.attribute(attrib)
+		end
+	rescue Selenium::WebDriver::Error::StaleElementReferenceError => e
+		staleRetries ||= 0
+		staleRetries += 1
+		if staleRetries < 3
+			retry
+		else
+			return nil
+			# waitForSkip(true)
+			# raise e
+		end
+	rescue Selenium::WebDriver::Error::NoSuchElementError => e
+		noneRetries ||= 0
+		noneRetries += 1
+		if noneRetries < 3
+			retry
+		else
+			return nil
+			# waitForSkip(true)
+			# raise e
+		end
+	end
+end
+
 def waitForSkip(finish)
 	wait = Selenium::WebDriver::Wait.new(:timeout => 30) # seconds
 	begin
@@ -157,7 +188,8 @@ def getNFLUpdates(team)
 	@drivers.each_with_index do |driver, i|
 		@driver = driver
 	
-		if getElementText({:class => "gc-clock"}) != "Final"
+		gcClock = getElementText({:class => "gc-clock"})
+		if gcClock != "Final"
 			waitForSkip(false)
 
 			homeTeam = getElementText({:xpath => "//div[@id='content-wrap']/div[@id='linescore']/div[@class='linescore clear']/table/tbody/tr[@class='home']/td[@class='gc-team']/a"})
@@ -165,8 +197,7 @@ def getNFLUpdates(team)
 
 			puts "#{homeTeam} VS #{awayTeam} (#{rand})"
 
-			gcClock = getElementText({:class => "gc-clock"})
-			if gcClock.include?("1st") or gcClock.include?("2nd") or gcClock.include?("3rd") or gcClock.include?("4th")
+			if gcClock.include?("1st") or gcClock.include?("2nd") or gcClock.include?("3rd") or gcClock.include?("4th") or gcClock.include?("Halftime")
 
 				homeTeamPlayers = []
 				awayTeamPlayers = []
@@ -199,26 +230,31 @@ def getNFLUpdates(team)
 					lastUpdate = @lastUpdates["#{homeTeam}#{awayTeam}"][:lastUpdate]
 				end
 
-				driveInfo = getElementText({:xpath => "//div[@id='content-wrap']/div[@id='info-box']/div[@id='plays-tab']/ul/li[contains(@class,'feed-mod play drive expanded  ')]/p[@class='play-text expander']/a"})
-				if driveInfo == nil
-					return
-				end
+				homeTeamBall = getElementAttribute({:xpath => "//*/div[@id='homeScoreBox']/div[contains(@class, 'gc-ball')]"}, "class")
+				awayTeamBall = getElementAttribute({:xpath => "//*/div[@id='awayScoreBox']/div[contains(@class, 'gc-ball')]"}, "class")
 
-				if driveInfo.include?(homeTeam) and lastTeamWithBall != homeTeam
+				if homeTeamBall.include?("gc-ball-on") and lastTeamWithBall != homeTeam
 					@lastUpdates["#{homeTeam}#{awayTeam}"][:lastTeamWithBall] = homeTeam
 					email("#{homeTeam} has the ball", "Root for #{homeTeamPlayers.join(', ')}")
-				elsif driveInfo.include?(awayTeam) and lastTeamWithBall != awayTeam
+				elsif awayTeamBall.include?("gc-ball-on") and lastTeamWithBall != awayTeam
 					@lastUpdates["#{homeTeam}#{awayTeam}"][:lastTeamWithBall] = awayTeam
 					email("#{awayTeam} has the ball", "Root for #{awayTeamPlayers.join(', ')}")
 				end
 
 				lastPlay = getElementText({:xpath => "//*[@id='lastPlay-text']"})
-				playersInGame.keys.each do |name|
-					lastNameStart = name.rindex(" ") + 1
-					abbrevName = "#{name[0]}.#{name[lastNameStart, name.length - lastNameStart]}"
-					if lastPlay.include?(abbrevName) and lastUpdate != lastPlay
+				if lastPlay.include?("END QUARTER")
+					if lastUpdate != lastPlay
 						@lastUpdates["#{homeTeam}#{awayTeam}"][:lastUpdate] = lastPlay
-						email(name, lastPlay)
+						email("Quarter End", lastPlay)
+					end
+				else
+					playersInGame.keys.each do |name|
+						lastNameStart = name.rindex(" ") + 1
+						abbrevName = "#{name[0]}.#{name[lastNameStart, name.length - lastNameStart]}"
+						if lastPlay.include?(abbrevName) and lastUpdate != lastPlay
+							@lastUpdates["#{homeTeam}#{awayTeam}"][:lastUpdate] = lastPlay
+							email(name, lastPlay)
+						end
 					end
 				end
 			else
