@@ -20,15 +20,6 @@ end
 
 @drivers = []
 
-def email(subject, body)
-	Mail.deliver do
-	  from     'FanDuel Update'
-	  to       '8608191255@vtext.com'
-	  subject  subject
-	  body     body
-	end
-end
-
 def openPage(url, driverNum)
 	@drivers[driverNum] = Selenium::WebDriver.for :chrome
 	@drivers[driverNum].get url

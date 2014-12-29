@@ -1,6 +1,7 @@
 require 'mail'
 require 'selenium-webdriver'
 require 'pp'
+require 'ruby-notify-my-android'
 
 abbrevs = {
 	"Arizona"=> "ARI",
@@ -55,6 +56,16 @@ def email(subject, body)
 	  to       '8608191255@vtext.com'
 	  subject  subject
 	  body     body
+	end
+end
+
+def notify(subject, body)
+	NMA.notify do |n| 
+	  n.apikey = "7ab69fd514c41a71749b097b786fafe46ec938411dac8d16"
+	  n.priority = NMA::Priority::MODERATE
+	  n.application = "FanDuel Update"
+	  n.event = body
+	  n.description = subject
 	end
 end
 
@@ -235,17 +246,17 @@ def getNFLUpdates(team)
 
 				if homeTeamBall.include?("gc-ball-on") and lastTeamWithBall != homeTeam
 					@lastUpdates["#{homeTeam}#{awayTeam}"][:lastTeamWithBall] = homeTeam
-					email("#{homeTeam} has the ball", "Root for #{homeTeamPlayers.join(', ')}")
+					notify("#{homeTeam} has the ball", "Root for #{homeTeamPlayers.join(', ')}")
 				elsif awayTeamBall.include?("gc-ball-on") and lastTeamWithBall != awayTeam
 					@lastUpdates["#{homeTeam}#{awayTeam}"][:lastTeamWithBall] = awayTeam
-					email("#{awayTeam} has the ball", "Root for #{awayTeamPlayers.join(', ')}")
+					notify("#{awayTeam} has the ball", "Root for #{awayTeamPlayers.join(', ')}")
 				end
 
 				lastPlay = getElementText({:xpath => "//*[@id='lastPlay-text']"})
 				if lastPlay.include?("END QUARTER")
 					if lastUpdate != lastPlay
 						@lastUpdates["#{homeTeam}#{awayTeam}"][:lastUpdate] = lastPlay
-						email("Quarter End", lastPlay)
+						notify("Quarter End", lastPlay)
 					end
 				else
 					playersInGame.keys.each do |name|
@@ -253,7 +264,7 @@ def getNFLUpdates(team)
 						abbrevName = "#{name[0]}.#{name[lastNameStart, name.length - lastNameStart]}"
 						if lastPlay.include?(abbrevName) and lastUpdate != lastPlay
 							@lastUpdates["#{homeTeam}#{awayTeam}"][:lastUpdate] = lastPlay
-							email(name, lastPlay)
+							notify(name, lastPlay)
 						end
 					end
 				end
