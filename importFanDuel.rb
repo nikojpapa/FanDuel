@@ -41,6 +41,7 @@ if driver0.find_element(:xpath => "//*[@id='body']").attribute("class").include?
 end
 
 @teams = {}
+@drivers = {}
 
 def getGameIDs(currentGames, team, league)
 
@@ -79,12 +80,12 @@ def getGameIDs(currentGames, team, league)
 end
 
 def startDrivers(gameIds, teamID, league)
-	@teams[teamID]["drivers"] ||= []
+	@teams[teamID]["gameIDs"] ||= []
 
 	gameIds.each_with_index do |id, index|
-		driverNum = @teams[teamID]["drivers"].length
-		@teams[teamID]["drivers"][driverNum] = Selenium::WebDriver.for :chrome
-		@teams[teamID]["drivers"][driverNum].get "http://scores.espn.go.com/#{league}/gamecast?gameId=#{id}"
+		@teams[teamID]["gameIDs"] << id
+		@drivers[id] = Selenium::WebDriver.for :chrome
+		@drivers[id].get "http://scores.espn.go.com/#{league}/gamecast?gameId=#{id}"
 	end
 end
 
@@ -186,17 +187,26 @@ driver0.quit
 while true
 	teamsDone = 0
 	@teams.each do |teamID, info|
-		drivers = info["drivers"]
+		gameIDs = info["gameIds"]
 		league = info["league"]
 		players = info["players"]
 
-		if drivers.length > 0
-			if league == "nfl"
-				info["drivers"] = getNFLUpdates(playeres, drivers)
-			elsif league == "nba"
-				info["drivers"] = getNBAUpdates(players, drivers)
+		finishedGames = 0
+		gameIDs.each_with_index do |id, ind|
+			driver = @drivers[id]
+
+			if driver != nil
+				if league == "nfl"
+					@drivers[id] = getNFLUpdates(playeres, driver)
+				elsif league == "nba"
+					@drivers[id] = getNBAUpdates(players, driver)
+				end
+			else
+				finishedGames += 1
 			end
-		else
+		end
+
+		if finishedGames.length == gameIDs.length
 			teamsDone += 1
 		end
 	end
