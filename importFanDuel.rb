@@ -42,13 +42,49 @@ end
 
 @teams = {}
 
-def startDrivers(gameIds, teamID)
+def getGameIDs(currentGames, team, league)
+
+	driver = Selenium::WebDriver.for :chrome
+	driver.get "http://scores.espn.go.com/#{league}/gamecast"
+
+	allIds = []
+	waitForElement({:xpath => "//*/ul[@id='oot-games']/li"}, driver)
+	driver.find_elements(:xpath => "//*/ul[@id='oot-games']/li").each do |id|
+		id = id.attribute("id")
+		allIds << id[4..id.length]
+	end
+	# pp allIds
+	driver.find_element(:id => "oot-right").click
+	driver.find_element(:id => "oot-right").click
+	driver.find_element(:id => "oot-right").click
+	driver.find_element(:id => "oot-right").click
+	driver.find_element(:id => "oot-right").click
+	gamecastGames = driver.find_elements(:xpath => "//*/ul[@id='oot-games']/li/div[@class='oot-game-link']/div[@class='teams']").map {|x| getElementText(x, driver)}
+	gamecastGameClocks = driver.find_elements(:xpath => "//*/ul[@id='oot-games']/li/div[@class='oot-game-link']/div[@class='status']/div[@class='clock']").map {|x| getElementText(x, driver)}
+	pp gamecastGames
+
+	ids = []
+	allIds.each do |id|
+		index = allIds.index(id)
+		currentGames.each do |teams|
+			if gamecastGames[index].include?(teams[0]) and gamecastGames[index].include?(teams[1]) and not gamecastGameClocks[index].include?("Final")
+				ids << id
+			end
+		end
+	end
+	
+	driver.quit
+	pp ids
+	return ids
+end
+
+def startDrivers(gameIds, teamID, league)
 	@teams[teamID]["drivers"] ||= []
 
 	gameIds.each_with_index do |id, index|
 		driverNum = @teams[teamID]["drivers"].length
 		@teams[teamID]["drivers"][driverNum] = Selenium::WebDriver.for :chrome
-		@teams[teamID]["drivers"][driverNum].get "http://scores.espn.go.com/nfl/gamecast?gameId=#{id}"
+		@teams[teamID]["drivers"][driverNum].get "http://scores.espn.go.com/#{league}/gamecast?gameId=#{id}"
 	end
 end
 
@@ -130,7 +166,7 @@ driver0.find_elements(:xpath => "//*/td[@class='id']/a").each_with_index do |id,
 		pp team
 
 		gameIds = getGameIDs(currentGames, team, "nfl")
-		startDrivers(gameIds, id.text)
+		startDrivers(gameIds, id.text, "nfl")
 
 	elsif thisDriver.find_element(:id => "scoring-table-name").text.include?("NBA")
 		@teams[id.text]["league"] = "nba"
@@ -138,7 +174,7 @@ driver0.find_elements(:xpath => "//*/td[@class='id']/a").each_with_index do |id,
 		pp team
 
 		gameIds = getGameIDs(currentGames, team, "nba")
-		startDrivers(gameIds, id.text)
+		startDrivers(gameIds, id.text, "nba")
 	end
 
 	thisDriver.quit

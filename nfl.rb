@@ -64,16 +64,16 @@ def notify(subject, body)
 	  n.apikey = "7ab69fd514c41a71749b097b786fafe46ec938411dac8d16"
 	  n.priority = NMA::Priority::MODERATE
 	  n.application = "FanDuel Update"
-	  n.event = body
-	  n.description = subject
+	  n.event = subject
+	  n.description = body
 	end
 end
 
-def getElementText(by, num=0)
+def getElementText(by, driver, num=0)
 
 	begin
 		if by.is_a?(Hash)
-			return @driver.find_elements(by)[num].text
+			return driver.find_elements(by)[num].text
 		else
 			return by.text
 		end
@@ -100,11 +100,11 @@ def getElementText(by, num=0)
 	end
 end
 
-def getElementAttribute(by, attrib, num=0)
+def getElementAttribute(by, attrib, driver, num=0)
 
 	begin
 		if by.is_a?(Hash)
-			return @driver.find_elements(by)[num].attribute(attrib)
+			return driver.find_elements(by)[num].attribute(attrib)
 		else
 			return by.attribute(attrib)
 		end
@@ -131,15 +131,15 @@ def getElementAttribute(by, attrib, num=0)
 	end
 end
 
-def waitForSkip(finish)
+def waitForSkip(finish, driver)
 	wait = Selenium::WebDriver::Wait.new(:timeout => 30) # seconds
 	begin
-		wait.until { @driver.find_element(:id => "skip").attribute("style") == "display: inline;" }
-		@driver.find_element(:id => "skip").click
+		wait.until { driver.find_element(:id => "skip").attribute("style") == "display: inline;" }
+		driver.find_element(:id => "skip").click
 	rescue
 		if finish
 			puts "Skip not found"
-			@driver.quit
+			driver.quit
 		end
 	end
 end
@@ -149,53 +149,16 @@ def waitForElement(by, driver)
 	wait.until { driver.find_element( by ) }
 end
 
-def getGameIDs(currentGames, team, league)
-
-	driver = Selenium::WebDriver.for :chrome
-	driver.get "http://scores.espn.go.com/#{league}/gamecast"
-
-	allIds = []
-	waitForElement({:xpath => "//*/ul[@id='oot-games']/li"}, driver)
-	driver.find_elements(:xpath => "//*/ul[@id='oot-games']/li").each do |id|
-		id = id.attribute("id")
-		allIds << id[4..id.length]
-	end
-	# pp allIds
-	driver.find_element(:id => "oot-right").click
-	driver.find_element(:id => "oot-right").click
-	driver.find_element(:id => "oot-right").click
-	driver.find_element(:id => "oot-right").click
-	driver.find_element(:id => "oot-right").click
-	gamecastGames = driver.find_elements(:xpath => "//*/ul[@id='oot-games']/li/div[@class='oot-game-link']/div[@class='teams']").map {|x| getElementText(x)}
-	gamecastGameClocks = driver.find_elements(:xpath => "//*/ul[@id='oot-games']/li/div[@class='oot-game-link']/div[@class='status']/div[@class='clock']").map {|x| getElementText(x)}
-	pp gamecastGames
-
-	ids = []
-	allIds.each do |id|
-		index = allIds.index(id)
-		currentGames.each do |teams|
-			if gamecastGames[index].include?(teams[0]) and gamecastGames[index].include?(teams[1]) and not gamecastGameClocks[index].include?("Final")
-				ids << id
-			end
-		end
-	end
-	
-	driver.quit
-	pp ids
-	return ids
-end
-
 @lastUpdates = {}
 def getNFLUpdates(team, drivers)
 	drivers["nfl"].each_with_index do |driver, i|
-		@driver = driver
 	
-		gcClock = getElementText({:class => "gc-clock"})
+		gcClock = getElementText({:class => "gc-clock"}, driver)
 		if gcClock != "Final"
-			waitForSkip(false)
+			waitForSkip(false, driver)
 
-			homeTeam = getElementText({:xpath => "//div[@id='content-wrap']/div[@id='linescore']/div[@class='linescore clear']/table/tbody/tr[@class='home']/td[@class='gc-team']/a"})
-			awayTeam = getElementText(:xpath => "//div[@id='content-wrap']/div[@id='linescore']/div[@class='linescore clear']/table/tbody/tr[@class='away']/td[@class='gc-team']/a")
+			homeTeam = getElementText({:xpath => "//div[@id='content-wrap']/div[@id='linescore']/div[@class='linescore clear']/table/tbody/tr[@class='home']/td[@class='gc-team']/a"}, driver)
+			awayTeam = getElementText({:xpath => "//div[@id='content-wrap']/div[@id='linescore']/div[@class='linescore clear']/table/tbody/tr[@class='away']/td[@class='gc-team']/a"}, driver)
 
 			puts "#{homeTeam} VS #{awayTeam} (#{rand})"
 
@@ -232,8 +195,8 @@ def getNFLUpdates(team, drivers)
 					lastUpdate = @lastUpdates["#{homeTeam}#{awayTeam}"][:lastUpdate]
 				end
 
-				homeTeamBall = getElementAttribute({:xpath => "//*/div[@id='homeScoreBox']/div[contains(@class, 'gc-ball')]"}, "class")
-				awayTeamBall = getElementAttribute({:xpath => "//*/div[@id='awayScoreBox']/div[contains(@class, 'gc-ball')]"}, "class")
+				homeTeamBall = getElementAttribute({:xpath => "//*/div[@id='homeScoreBox']/div[contains(@class, 'gc-ball')]"}, "class", driver)
+				awayTeamBall = getElementAttribute({:xpath => "//*/div[@id='awayScoreBox']/div[contains(@class, 'gc-ball')]"}, "class", driver)
 
 				if homeTeamBall.include?("gc-ball-on") and lastTeamWithBall != homeTeam
 					@lastUpdates["#{homeTeam}#{awayTeam}"][:lastTeamWithBall] = homeTeam
@@ -243,7 +206,7 @@ def getNFLUpdates(team, drivers)
 					notify("#{awayTeam} has the ball", "Root for #{awayTeamPlayers.join(', ')}")
 				end
 
-				lastPlay = getElementText({:xpath => "//*[@id='lastPlay-text']"})
+				lastPlay = getElementText({:xpath => "//*[@id='lastPlay-text']"}, driver)
 				if lastPlay.include?("END QUARTER")
 					if lastUpdate != lastPlay
 						@lastUpdates["#{homeTeam}#{awayTeam}"][:lastUpdate] = lastPlay
@@ -264,8 +227,8 @@ def getNFLUpdates(team, drivers)
 			end
 		else
 			driver.quit
-			drivers["nfl"][i] = nil
-			drivers["nfl"].compact!
+			drivers[i] = nil
+			drivers.compact!
 		end
 	end
 
@@ -273,19 +236,18 @@ def getNFLUpdates(team, drivers)
 end
 
 def getNBAUpdates(team, drivers)
-	drivers["nba"].each_with_index do |driver, i|
-		@driver = driver
+	drivers.each_with_index do |driver, i|
 	
-		gcClock = getElementText({:class => "//div[@id='content-wrap']/div[@id='linescore']/ul[@class='period-header']/li[contains(@class, 'current')]"})
-		if gcClock != "Final" and gcClock != nil
-			waitForSkip(false)
+		if not getElementAttribute({:xpath => "//div[@id='content-wrap']/div[@id='linescore']/ul[@class='period-header']/li[contains(@class, 'current')]"}, "class").include?("end-period")
+			waitForSkip(false, driver)
 
-			homeTeam = getElementText({:xpath => "//div[@id='content-wrap']/div[@id='linescore']/div[@class='period-scores']/li[@class='team-abbrevs']/p"})
-			awayTeam = getElementText({:xpath => "//div[@id='content-wrap']/div[@id='linescore']/div[@class='period-scores']/li[@class='team-abbrevs']/p"}, 1)
+			homeTeam = getElementText({:xpath => "//div[@id='content-wrap']/div[@id='linescore']/ul[@class='period-scores']/li[@class='team-abbrevs']/p"}, driver)
+			awayTeam = getElementText({:xpath => "//div[@id='content-wrap']/div[@id='linescore']/ul[@class='period-scores']/li[@class='team-abbrevs']/p"}, driver, 1)
 
 			puts "#{homeTeam} VS #{awayTeam} (#{rand})"
 
-			if gcClock.include?("1st") or gcClock.include?("2nd") or gcClock.include?("3rd") or gcClock.include?("4th") or gcClock.include?("Halftime")
+			gcClock = getElementText({:xpath => "//div[@id='content-wrap']/div[@id='linescore']/ul[@class='period-header']/li[contains(@class, 'current')]"}, driver)
+			if gcClock.include?("1ST") or gcClock.include?("2ND") or gcClock.include?("3RD") or gcClock.include?("4TH") or gcClock.include?("Halftime")
 
 				homeTeamPlayers = []
 				awayTeamPlayers = []
@@ -318,7 +280,7 @@ def getNBAUpdates(team, drivers)
 					lastUpdate = @lastUpdates["#{homeTeam}#{awayTeam}"][:lastUpdate]
 				end
 
-				lastPlay = getElementText({:xpath => "//*[@id='lastPlayList']/li/div[@class='mod-play-text']/p"})
+				lastPlay = getElementText({:xpath => "//*[@id='lastPlayList']/li/div[@class='mod-play-text']/p"}, driver)
 				if lastPlay.include?("END QUARTER")
 					if lastUpdate != lastPlay
 						@lastUpdates["#{homeTeam}#{awayTeam}"][:lastUpdate] = lastPlay
@@ -326,9 +288,7 @@ def getNBAUpdates(team, drivers)
 					end
 				else
 					playersInGame.keys.each do |name|
-						lastNameStart = name.rindex(" ") + 1
-						abbrevName = "#{name[0]}.#{name[lastNameStart, name.length - lastNameStart]}"
-						if lastPlay.include?(abbrevName) and lastUpdate != lastPlay
+						if lastPlay.include?(name) and lastUpdate != lastPlay
 							@lastUpdates["#{homeTeam}#{awayTeam}"][:lastUpdate] = lastPlay
 							notify(name, lastPlay)
 						end
@@ -339,8 +299,8 @@ def getNBAUpdates(team, drivers)
 			end
 		else
 			driver.quit
-			drivers["nba"][i] = nil
-			drivers["nba"].compact!
+			drivers[i] = nil
+			drivers.compact!
 		end
 	end
 
