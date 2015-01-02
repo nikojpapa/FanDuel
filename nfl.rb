@@ -69,11 +69,11 @@ def notify(subject, body)
 	end
 end
 
-def getElementText(by)
+def getElementText(by, num=0)
 
 	begin
 		if by.is_a?(Hash)
-			return @driver.find_element(by).text
+			return @driver.find_elements(by)[num].text
 		else
 			return by.text
 		end
@@ -100,11 +100,11 @@ def getElementText(by)
 	end
 end
 
-def getElementAttribute(by, attrib)
+def getElementAttribute(by, attrib, num=0)
 
 	begin
 		if by.is_a?(Hash)
-			return @driver.find_element(by).attribute(attrib)
+			return @driver.find_elements(by)[num].attribute(attrib)
 		else
 			return by.attribute(attrib)
 		end
@@ -149,10 +149,10 @@ def waitForElement(by, driver)
 	wait.until { driver.find_element( by ) }
 end
 
-def getGameIDs(currentGames, team)
+def getGameIDs(currentGames, team, league)
 
 	driver = Selenium::WebDriver.for :chrome
-	driver.get "http://scores.espn.go.com/nfl/gamecast"
+	driver.get "http://scores.espn.go.com/#{league}/gamecast"
 
 	allIds = []
 	waitForElement({:xpath => "//*/ul[@id='oot-games']/li"}, driver)
@@ -185,18 +185,9 @@ def getGameIDs(currentGames, team)
 	return ids
 end
 
-@drivers = []
-def startDrivers(gameIds)
-	gameIds.each_with_index do |id, index|
-		driverNum = @drivers.length
-		@drivers[driverNum] = Selenium::WebDriver.for :chrome
-		@drivers[driverNum].get "http://scores.espn.go.com/nfl/gamecast?gameId=#{id}"
-	end
-end
-
 @lastUpdates = {}
-def getNFLUpdates(team)
-	@drivers.each_with_index do |driver, i|
+def getNFLUpdates(team, drivers)
+	drivers["nfl"].each_with_index do |driver, i|
 		@driver = driver
 	
 		gcClock = getElementText({:class => "gc-clock"})
@@ -273,17 +264,94 @@ def getNFLUpdates(team)
 			end
 		else
 			driver.quit
-			@drivers[i] = nil
-			@drivers.compact!
+			drivers["nfl"][i] = nil
+			drivers["nfl"].compact!
 		end
 	end
+
+	return drivers
+end
+
+def getNBAUpdates(team, drivers)
+	drivers["nba"].each_with_index do |driver, i|
+		@driver = driver
+	
+		gcClock = getElementText({:class => "//div[@id='content-wrap']/div[@id='linescore']/ul[@class='period-header']/li[contains(@class, 'current')]"})
+		if gcClock != "Final" and gcClock != nil
+			waitForSkip(false)
+
+			homeTeam = getElementText({:xpath => "//div[@id='content-wrap']/div[@id='linescore']/div[@class='period-scores']/li[@class='team-abbrevs']/p"})
+			awayTeam = getElementText({:xpath => "//div[@id='content-wrap']/div[@id='linescore']/div[@class='period-scores']/li[@class='team-abbrevs']/p"}, 1)
+
+			puts "#{homeTeam} VS #{awayTeam} (#{rand})"
+
+			if gcClock.include?("1st") or gcClock.include?("2nd") or gcClock.include?("3rd") or gcClock.include?("4th") or gcClock.include?("Halftime")
+
+				homeTeamPlayers = []
+				awayTeamPlayers = []
+				playersInGame = {}
+				lastTeamWithBall = ""
+				lastUpdate = ""
+				if not @lastUpdates["#{homeTeam}#{awayTeam}"]
+					@lastUpdates["#{homeTeam}#{awayTeam}"] = {}
+					
+					team.each do |name, info|
+						if info["team"] == homeTeam
+							homeTeamPlayers << "#{name} #{info['pos']}"
+							playersInGame[name] = info
+						elsif info["team"] == awayTeam
+							awayTeamPlayers << "#{name} #{info['pos']}"
+							playersInGame[name] = info
+						end
+					end
+
+					@lastUpdates["#{homeTeam}#{awayTeam}"][:homeTeamPlayers] = homeTeamPlayers
+					@lastUpdates["#{homeTeam}#{awayTeam}"][:awayTeamPlayers] = awayTeamPlayers
+					@lastUpdates["#{homeTeam}#{awayTeam}"][:playersInGame] = playersInGame
+					@lastUpdates["#{homeTeam}#{awayTeam}"][:lastTeamWithBall] = ""
+					@lastUpdates["#{homeTeam}#{awayTeam}"][:lastUpdate] = ""
+				else
+					homeTeamPlayers = @lastUpdates["#{homeTeam}#{awayTeam}"][:homeTeamPlayers]
+					awayTeamPlayers = @lastUpdates["#{homeTeam}#{awayTeam}"][:awayTeamPlayers]
+					playersInGame = @lastUpdates["#{homeTeam}#{awayTeam}"][:playersInGame]
+					lastTeamWithBall = @lastUpdates["#{homeTeam}#{awayTeam}"][:lastTeamWithBall]
+					lastUpdate = @lastUpdates["#{homeTeam}#{awayTeam}"][:lastUpdate]
+				end
+
+				lastPlay = getElementText({:xpath => "//*[@id='lastPlayList']/li/div[@class='mod-play-text']/p"})
+				if lastPlay.include?("END QUARTER")
+					if lastUpdate != lastPlay
+						@lastUpdates["#{homeTeam}#{awayTeam}"][:lastUpdate] = lastPlay
+						notify("Quarter End", lastPlay)
+					end
+				else
+					playersInGame.keys.each do |name|
+						lastNameStart = name.rindex(" ") + 1
+						abbrevName = "#{name[0]}.#{name[lastNameStart, name.length - lastNameStart]}"
+						if lastPlay.include?(abbrevName) and lastUpdate != lastPlay
+							@lastUpdates["#{homeTeam}#{awayTeam}"][:lastUpdate] = lastPlay
+							notify(name, lastPlay)
+						end
+					end
+				end
+			else
+				puts "    Hasn't Started"
+			end
+		else
+			driver.quit
+			drivers["nba"][i] = nil
+			drivers["nba"].compact!
+		end
+	end
+
+	return drivers
 end
 
 def startNFL(currentGames, team)
-	gameIds = getGameIDs(currentGames, team)
+	gameIds = getNFLGameIDs(currentGames, team)
 	startDrivers(gameIds)
 
-	while @drivers.length > 0
+	while @drivers["nfl"].length + @drivers["nba"].length > 0
 		getNFLUpdates(team)
 	end
 end

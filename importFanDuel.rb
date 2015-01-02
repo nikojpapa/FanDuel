@@ -40,13 +40,27 @@ if driver0.find_element(:xpath => "//*[@id='body']").attribute("class").include?
 	driver0.find_element(:xpath => "//*/input[@type='submit']").click
 end
 
-gameDrivers = {}
+@teams = {}
 
-team = {}
-currentNFLGames = []
+def startDrivers(gameIds, teamID)
+	@teams[teamID]["drivers"] ||= []
+
+	gameIds.each_with_index do |id, index|
+		driverNum = @teams[teamID]["drivers"].length
+		@teams[teamID]["drivers"][driverNum] = Selenium::WebDriver.for :chrome
+		@teams[teamID]["drivers"][driverNum].get "http://scores.espn.go.com/nfl/gamecast?gameId=#{id}"
+	end
+end
+
 
 waitForElement({:xpath => "//*/td[@class='id']/a"}, driver0)
 driver0.find_elements(:xpath => "//*/td[@class='id']/a").each_with_index do |id, i|
+	@teams[id.text] = {}
+	@teams[id.text]["currentGames"] = []
+	@teams[id.text]["players"] = {}
+	currentGames = @teams[id.text]["currentGames"]
+	team = @teams[id.text]["players"]
+
 	url = id.attribute("href")
 	thisDriver = Selenium::WebDriver.for :chrome
 	thisDriver.get url
@@ -74,55 +88,87 @@ driver0.find_elements(:xpath => "//*/td[@class='id']/a").each_with_index do |id,
 		end
 	end
 
+	thisDriver.find_elements(:class => "fixture-card").each do |game|
+		info = game.text
+
+		firstTeamEnd = info.index(/[^A-Z]/) - 1
+		secondTeamStart = info.index(/[A-Z]/, firstTeamEnd+1)
+		secondTeamEnd = info.index(/[^A-Z]/, secondTeamStart) - 1
+		currentGames << [info[0..firstTeamEnd], info[secondTeamStart..secondTeamEnd]]
+	end
+
+	currentGames.each_with_index do |teams, index|
+		important = false
+		team.values.each do |playerInfo|
+			if teams.include?(playerInfo["team"])
+				important = true
+			end
+		end
+
+		if important == false
+			currentGames[index] = nil
+		end
+	end
+	currentGames.compact!
+
 	if thisDriver.find_element(:id => "scoring-table-name").text.include?("NFL")
-		thisDriver.find_elements(:class => "fixture-card").each do |game|
-			info = game.text
+		@teams[id.text]["league"] = "nfl"
 
-			firstTeamEnd = info.index(/[^A-Z]/) - 1
-			secondTeamStart = info.index(/[A-Z]/, firstTeamEnd+1)
-			secondTeamEnd = info.index(/[^A-Z]/, secondTeamStart) - 1
-			currentNFLGames << [info[0..firstTeamEnd], info[secondTeamStart..secondTeamEnd]]
-		end
-	end
-
-	thisDriver.quit
-end
-
-currentNFLGames.each_with_index do |teams, index|
-	important = false
-	team.values.each do |playerInfo|
-		if teams.include?(playerInfo["team"])
-			important = true
-		end
-	end
-
-	if important == false
-		currentNFLGames[index] = nil
-	end
-end
-currentNFLGames.compact!
-
-team.each do |name, info|
-	if info["pos"] == "D"
-		currentNFLGames.each do |teams|
-			if teams.include?(info["team"])
-				otherTeamIndex = 1 - teams.index(info["team"])
-				info["team"] = teams[otherTeamIndex]
+		team.each do |name, info|
+			if info["pos"] == "D"
+				currentGames.each do |teams|
+					if teams.include?(info["team"])
+						otherTeamIndex = 1 - teams.index(info["team"])
+						info["team"] = teams[otherTeamIndex]
+						break
+					end
+				end
 				break
 			end
 		end
-		break
-	end
-end
 
-pp team
-pp currentNFLGames
+		pp team
+
+		gameIds = getGameIDs(currentGames, team, "nfl")
+		startDrivers(gameIds, id.text)
+
+	elsif thisDriver.find_element(:id => "scoring-table-name").text.include?("NBA")
+		@teams[id.text]["league"] = "nba"
+
+		pp team
+
+		gameIds = getGameIDs(currentGames, team, "nba")
+		startDrivers(gameIds, id.text)
+	end
+
+	thisDriver.quit
+
+end
 
 driver0.quit
 
-startNFL(currentNFLGames, team)
+while true
+	teamsDone = 0
+	@teams.each do |teamID, info|
+		drivers = info["drivers"]
+		league = info["league"]
+		players = info["players"]
 
+		if drivers.length > 0
+			if league == "nfl"
+				info["drivers"] = getNFLUpdates(playeres, drivers)
+			elsif league == "nba"
+				info["drivers"] = getNBAUpdates(players, drivers)
+			end
+		else
+			teamsDone += 1
+		end
+	end
 
+	if teamsDone == @teams.length
+		break
+	end
+end
 
 
 
