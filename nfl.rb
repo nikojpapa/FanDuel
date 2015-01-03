@@ -238,7 +238,7 @@ end
 def getNBAUpdates(team, drivers)
 	drivers.each_with_index do |driver, i|
 	
-		if not getElementAttribute({:xpath => "//div[@id='content-wrap']/div[@id='linescore']/ul[@class='period-header']/li[contains(@class, 'current')]"}, "class", driver).include?("end-period")
+		if not getElementAttribute({:xpath => "//div[@id='content-wrap']/div[@id='linescore']/ul[@class='period-header']/li[contains(@class, 'current')]"}, "class").include?("end-period")
 			waitForSkip(false, driver)
 
 			homeTeam = getElementText({:xpath => "//div[@id='content-wrap']/div[@id='linescore']/ul[@class='period-scores']/li[@class='team-abbrevs']/p"}, driver)
