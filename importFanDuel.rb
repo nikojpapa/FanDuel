@@ -83,6 +83,7 @@ def startDrivers(gameIds, teamID, league)
 	@teams[teamID]["gameIDs"] ||= []
 
 	gameIds.each_with_index do |id, index|
+		next if @drivers.keys.include?(id)
 		@teams[teamID]["gameIDs"] << id
 		@drivers[id] = Selenium::WebDriver.for :chrome
 		@drivers[id].get "http://scores.espn.go.com/#{league}/gamecast?gameId=#{id}"
@@ -187,7 +188,7 @@ driver0.quit
 while true
 	teamsDone = 0
 	@teams.each do |teamID, info|
-		gameIDs = info["gameIds"]
+		gameIDs = info["gameIDs"]
 		league = info["league"]
 		players = info["players"]
 
@@ -197,16 +198,16 @@ while true
 
 			if driver != nil
 				if league == "nfl"
-					@drivers[id] = getNFLUpdates(playeres, driver)
+					@drivers[id] = getNFLUpdates(playeres, [driver])[0]
 				elsif league == "nba"
-					@drivers[id] = getNBAUpdates(players, driver)
+					@drivers[id] = getNBAUpdates(players, [driver])[0]
 				end
 			else
 				finishedGames += 1
 			end
 		end
 
-		if finishedGames.length == gameIDs.length
+		if finishedGames == gameIDs.length
 			teamsDone += 1
 		end
 	end
